@@ -319,39 +319,98 @@ def Set_All_Flag_Clr():
 #endregion API
 
 #region Mission
-def Mission_1(x, y, z):
-    if z < 30 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Prepare_Dist(z - 17)
-        Set_Mission_1_Flag(1)
-        
-def Mission_2(x, y, z):
-    if z < 30 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Prepare_Dist(z - 17)
-        Set_Mission_2_Flag(1)
-
-def Mission_3(x, y, z):
-    if z < 30 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Prepare_Dist(z - 17)
-        Set_Mission_3_Flag(1)
-
-def Mission_4(x, y, z):
-    if z < 27 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Prepare_Dist(z - 21)
-        Set_Mission_4_Flag(1)
+def Flag_Checker():
+    if Get_Lane_Cross_Flag() == 1:
+        return 'CROSS'
+    elif Get_T_Cross_Flag() == 1:
+        return 'T'
+    elif Get_Edge_Flag() == 1:
+        return 'EDGE'
+    elif Get_Crosswalk_Flag() == 1:
+        return 'WALK'
+    elif Get_End_Flag() == 1:
+        return 'END'
+    else:
+        return None
     
-def exit_cross(x, y, z):
-    if z < 14 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Exit_Flag(1)
+def Mission_Check():
+    '''
+    현재 미션 카운트 확인 후 
+    Cross 확인 count 일정 횟수 되면 좌/우 이동 명령 예정
+    Edge 인식하면 바로 Turn 하게 하고, Turn 여부 ON
+    이후 Edge 또는 T-CrossLine 인식하면 좌/우에 따른 우/좌 이동 명령
+    '''
+    active_flag = Flag_Checker()
+    if active_flag is None:
+        return None
+    if active_flag == 'END':
+        return 'END'
+    #region Mission - 1 or 3
+    elif (Get_Mission_Cnt() == 0) or (Get_Mission_Cnt() == 2):
+        if active_flag == 'CROSS':
+            # 카운트 증가, 이걸 몇번 하느냐에 따라 객체 인식 횟수 조절
+            # 허나 Yolo 예상하기로는 1번만 해도 움직이게 해야할 수도 있음
+            Set_Lane_Cross_Flag(0)
+            Set_Lane_Cross_Cnt(Get_Lane_Cross_Cnt()+1)  
+        elif active_flag == 'EDGE':
+            Set_Edge_Flag(0)
+            Set_Edge_Cnt(Get_Edge_Cnt() + 1)
+        elif active_flag == 'T':
+            Set_T_Cross_Flag(0)
+            Set_T_Cross_Cnt(Get_T_Cross_Cnt() + 1)
+        # 객체별 몇번 봤는지 따라 조절
+        # 처음 갈림길 보면 오른쪽으로 가기
+        if Get_Lane_Cross_Cnt() == 3:
+            Set_Lane_Cross_Cnt(0)
+            return 'T_R'    #Turn Right
+        if Get_Edge_Cnt() == 3:
+            Set_Edge_Cnt(0)
+            if Get_Exit_Dir() == 0:
+                Set_Exit_Dir(1)
+                return 'TURN'
+            else:
+                Set_Exit_Dir(0) #만약 T-Cross를 Edge로 인식하는 경우를 대비하기 위함
+                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+                return 'T_R'
+        if Get_T_Cross_Cnt() == 3:
+            Set_T_Cross_Cnt(0)
+            Set_Exit_Dir(0)
+            Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+            return 'T_R'
+    #endregion Mission - 1 or 3
+        
+    #region Mission - 2 or 4
+    elif (Get_Mission_Cnt() == 1) or (Get_Mission_Cnt() == 3):
+        if active_flag == 'CROSS':
+            Set_Lane_Cross_Flag(0)
+            Set_Lane_Cross_Cnt(Get_Lane_Cross_Cnt()+1)  
+        elif active_flag == 'EDGE':
+            Set_Edge_Flag(0)
+            Set_Edge_Cnt(Get_Edge_Cnt() + 1)
+        elif active_flag == 'T':
+            Set_T_Cross_Flag(0)
+            Set_T_Cross_Cnt(Get_T_Cross_Cnt() + 1)
+        # 객체별 몇번 봤는지 따라 조절
+        # 처음 갈림길 보면 오른쪽으로 가기
+        if Get_Lane_Cross_Cnt() == 3:
+            Set_Lane_Cross_Cnt(0)
+            return 'T_L'    #Turn Left
+        if Get_Edge_Cnt() == 3:
+            Set_Edge_Cnt(0)
+            if Get_Exit_Dir() == 0:
+                Set_Exit_Dir(1)
+                return 'TURN'
+            else:
+                Set_Exit_Dir(0) #만약 T-Cross를 Edge로 인식하는 경우를 대비하기 위함
+                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+                return 'T_L'
+        if Get_T_Cross_Cnt() == 3:
+            Set_T_Cross_Cnt(0)
+            Set_Exit_Dir(0)
+            Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+            return 'T_L'
+    #endregion Mission - 2 or 4
 
-def edge_turn(x, y, z):
-    if z < 12.5 and Get_Mission_1_Flag() + Get_Mission_2_Flag() + Get_Mission_3_Flag() + Get_Mission_4_Flag() \
-    + Get_Edge_Flag() + Get_Left_Flag() + Get_Right_Flag() + Get_Exit_Flag() == 0:
-        Set_Edge_Flag(1)
 #endregion Mission
 
 #region CV2 & YOLO
@@ -486,143 +545,65 @@ def motor_control():
     while True:
         with lock:  # 조향각에 대한 Lock을 사용하여 동기화
             L, R = calculate_motor_input(steering_angle, speed)
-
+        
+        timer = 1
         
         #Mission Count 올라가는 장치
-        '''
-        Mission Count 올리는 기준 설명
-        1. 오른쪽 들어가도록 하는 경우 [+1]
-        1-1. 들어가서 Edge 인식 하는 경우 [+1]
-        1-2. Edge에서 나오면서 T-CrossLine 인식하는 경우 [+1]
-        2. 왼쪽도 1과 동일
-        3. 1과 동일
-        4. 2와 동일
-        '''
-            
-        # YOLO 관련 Flag 내리는 장치
-        Set_All_Flag_Clr()
-        
-        # # if reach END
-        if Get_End_Flag() == 1 :
-            if Get_End_Cnt() > 39:
-                Set_Finish(1)
-            else:
-                Set_End_Cnt(Get_End_Cnt() + 1)
-        
-        # turn right 1
-        elif Get_Mission_1_Flag() == 1 :
-            if Get_Mission_1_Cnt() < Get_Prepare_Dist():
-                Set_Mission_1_Cnt(Get_Mission_1_Cnt() + 1)
-            elif Get_Mission_1_Cnt() < Get_Prepare_Dist() + 7:
-                L = 35
-                R = -35
-                Set_Mission_1_Cnt(Get_Mission_1_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Exit_Dir(1)
-                Set_Mission_1_Flag(0)
-                Set_Mission_1_Cnt(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # turn left 1
-        elif Get_Mission_2_Flag() == 1 :
-            if Get_Mission_2_Cnt() < Get_Prepare_Dist():
-                Set_Mission_2_Cnt(Get_Mission_2_Cnt() + 1)
-            elif Get_Mission_2_Cnt() < Get_Prepare_Dist() + 7:
-                L = -35
-                R = 35
-                Set_Mission_2_Cnt(Get_Mission_2_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Exit_Dir(0)
-                Set_Mission_2_Flag(0)
-                Set_Mission_2_Cnt(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # turn right 2
-        elif Get_Mission_3_Flag() == 1 :
-            if Get_Mission_3_Cnt() < Get_Prepare_Dist():
-                Set_Mission_3_Cnt(Get_Mission_3_Cnt() + 1)
-            elif Get_Mission_3_Cnt() < Get_Prepare_Dist() + 6:
-                L = 35
-                R = -35
-                Set_Mission_3_Cnt(Get_Mission_3_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Exit_Dir(1)
-                Set_Mission_3_Flag(0)
-                Set_Mission_3_Cnt(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # turn left 2
-        elif Get_Mission_4_Flag() == 1 :
-            if Get_Mission_4_Cnt() < Get_Prepare_Dist():
-                Set_Mission_4_Cnt(Get_Mission_4_Cnt() + 1)
-            elif Get_Mission_4_Cnt() < Get_Prepare_Dist() + 6:
-                L = -35
-                R = 35
-                Set_Mission_4_Cnt(Get_Mission_4_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Exit_Dir(0)
-                Set_Mission_4_Flag(0)
-                Set_Mission_4_Cnt(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # if reach EDGE    
-        elif Get_Edge_Flag() == 1 :
-            if Get_Edge_Cnt() < 10:
-                L = -40
-                R = 40
-                Set_Edge_Cnt(Get_Edge_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Edge_Flag(0)
-                Set_Edge_Cnt(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # exit left
-        elif Get_Left_Flag() == 1 :
-            if Get_Left_Cnt() < 6:
-                L = -35
-                R = 35
-                Set_Left_Cnt(Get_Left_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Left_Flag(0)
-                Set_Left_Cnt(0)
-                Set_Exit_Flag(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # exit right
-        elif Get_Right_Flag() == 1 :
-            if Get_Right_Cnt() < 6:
-                L = 35
-                R = -35
-                Set_Right_Cnt(Get_Right_Cnt() + 1)
-            else:
-                L = 0
-                R = 0
-                Set_Right_Flag(0)
-                Set_Right_Cnt(0)
-                Set_Exit_Flag(0)
-                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-        # if reach EXIT      
-        elif Get_Exit_Flag() == 1 :
-            if Get_Exit_Dir() == 0 : # 0 : Left in & Left out
-                Set_Left_Flag(1)
-            else:                    # 1 : Right in & Right out
-                Set_Right_Flag(1)
-
-        if Get_Finish() == 1 :
+        mission_str = Mission_Check()
+        if mission_str is None:
+            continue
+        elif mission_str == 'T_R': #Turn-Right
+            L = 35
+            R = -35
+        elif mission_str == 'T_L': #Turn-Left
+            L = -35
+            R = 35
+        elif mission_str == 'TURN': # Turning-180
+            L = -40
+            R = 40
+        elif mission_str == 'END':
             L = 0
             R = 0
 
-        # L = 0
-        # R = 0
-        pinky.move(L, R)  # 모터에 제어 신호 입력
-        #print(f"Motor Input - Left: {L}, Right: {R}")
-        time.sleep(0.1)
+        
+        if Get_Mission_Cnt() == 0:
+            if mission_str == 'T_R':
+                timer = 7
+            elif mission_str == 'TURN':
+                timer = 10
+        elif Get_Mission_Cnt() == 1:
+            if mission_str == 'T_R':    #mission 1번 빠져나올 때 회전하는 정도
+                timer = 6
+            elif mission_str == 'TURN':
+                timer = 10
+            elif mission_str == 'T_L':
+                timer = 7
+        elif Get_Mission_Cnt() == 2:
+            if mission_str == 'T_R':
+                timer = 6
+            elif mission_str == 'TURN':
+                timer = 10
+            elif mission_str == 'T_L':    #mission 2번 빠져나올 때 회전하는 정도
+                timer = 6
+        elif Get_Mission_Cnt() == 3:
+            if mission_str == 'T_R':    #mission 3번 빠져나올 때 회전하는 정도
+                timer = 6
+            elif mission_str == 'TURN':
+                timer = 10
+            elif mission_str == 'T_L':
+                timer = 6
+        elif Get_Mission_Cnt() == 4:
+            if mission_str == 'T_L':
+                timer = 6
+            elif mission_str == 'END':
+                timer = 0
+                L, R = 0, 0
+        
+        while(timer != 0):
+            timer -= 1
+            pinky.move(L, R)  # 모터에 제어 신호 입력
+            #print(f"Motor Input - Left: {L}, Right: {R}")
+            time.sleep(0.1)
 
 #endregion MOTOR
 
@@ -649,6 +630,7 @@ def video_processing():
         results = model(frame)
         for result in results[0].boxes:
             # Set_All_Flag_Clr()
+            # 여기서 객체 인식되면 각 객체별 flag = 1
             if (result.cls == 2) or (result.cls == 3):
                 lane_cross(result)
             elif result.cls == 4:
@@ -661,35 +643,9 @@ def video_processing():
                 end(result)
         
         # Line 주행
-        # lane_frame = frame.copy()
-        # steering_angle = lane(lane_frame)
         steering_angle = lane(frame)
         
         
-        if pose_n_ids is not None:
-            for pose_id in pose_n_ids:
-                aruco_id = pose_id[0]
-                if Get_Mission_Cnt() < len(mission_array) and aruco_id == mission_array[Get_Mission_Cnt()]:
-                    if aruco_id == 0 : # mission 1 - right 1
-                        # pinky.buzzer_start()
-                        # pinky.buzzer(1)
-                        # pinky.buzzer_stop()
-                        # pinky.clean()
-                        Mission_1(pose_id[1], pose_id[2], pose_id[3])
-                    elif aruco_id == 1 : # mission 2 - left 1
-                        Mission_2(pose_id[1], pose_id[2], pose_id[3])
-                    elif aruco_id == 2: # mission 3 - right 2
-                        Mission_3(pose_id[1], pose_id[2], pose_id[3])
-                    elif aruco_id == 3: # mission 4 - left 2
-                        Mission_4(pose_id[1], pose_id[2], pose_id[3])
-                    elif aruco_id == 4 or aruco_id == 5 or aruco_id == 6 or aruco_id == 7:
-                        exit_cross(pose_id[1], pose_id[2], pose_id[3])
-                    elif aruco_id == 8 or aruco_id == 9 or aruco_id == 10 or aruco_id == 11:
-                        edge_turn(pose_id[1], pose_id[2], pose_id[3])
-                elif Get_Mission_Cnt() >= len(mission_array):
-                    Set_End_Flag(1)
-                    
-        time.sleep(0.1)
 
 #endregion VIDEO
 
