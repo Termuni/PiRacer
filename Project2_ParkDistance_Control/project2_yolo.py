@@ -15,7 +15,7 @@ import threading
 
 #region init
 # YOLO 모델과 카메라 초기화
-model = YOLO('./yolo_weights/week2_best.pt')
+model = YOLO('./yolo_weights/week2_best_ver2_nano.pt')
 cam = Camera()
 cam.set_calibration()
 cam.start()
@@ -320,7 +320,9 @@ def Set_All_Flag_Clr():
 
 #region Mission
 def Flag_Checker():
-    if Get_Lane_Cross_Flag() == 1:
+    if Get_End_Flag() == 1:
+        return 'END'
+    elif Get_Lane_Cross_Flag() == 1:
         return 'CROSS'
     elif Get_T_Cross_Flag() == 1:
         return 'T'
@@ -328,8 +330,6 @@ def Flag_Checker():
         return 'EDGE'
     elif Get_Crosswalk_Flag() == 1:
         return 'WALK'
-    elif Get_End_Flag() == 1:
-        return 'END'
     else:
         return None
     
@@ -360,10 +360,10 @@ def Mission_Check():
             Set_T_Cross_Cnt(Get_T_Cross_Cnt() + 1)
         # 객체별 몇번 봤는지 따라 조절
         # 처음 갈림길 보면 오른쪽으로 가기
-        if Get_Lane_Cross_Cnt() == 3:
+        if Get_Lane_Cross_Cnt() == 2:                                                # Counter
             Set_Lane_Cross_Cnt(0)
             return 'T_R'    #Turn Right
-        if Get_Edge_Cnt() == 3:
+        if Get_Edge_Cnt() == 1:                                                      # Counter
             Set_Edge_Cnt(0)
             if Get_Exit_Dir() == 0:
                 Set_Exit_Dir(1)
@@ -372,11 +372,15 @@ def Mission_Check():
                 Set_Exit_Dir(0) #만약 T-Cross를 Edge로 인식하는 경우를 대비하기 위함
                 Set_Mission_Cnt(Get_Mission_Cnt() + 1)
                 return 'T_R'
-        if Get_T_Cross_Cnt() == 3:
+        if Get_T_Cross_Cnt() == 1:                                                    # Counter
             Set_T_Cross_Cnt(0)
-            Set_Exit_Dir(0)
-            Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-            return 'T_R'
+            if Get_Exit_Dir() == 0: #만약 Edge를 T-Cross로 인식하는 경우를 대비하기 위함
+                Set_Exit_Dir(1)     #나가는 거라고 세팅
+                return 'TURN'
+            else:
+                Set_Exit_Dir(0)
+                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+                return 'T_R'
     #endregion Mission - 1 or 3
         
     #region Mission - 2 or 4
@@ -392,10 +396,10 @@ def Mission_Check():
             Set_T_Cross_Cnt(Get_T_Cross_Cnt() + 1)
         # 객체별 몇번 봤는지 따라 조절
         # 처음 갈림길 보면 오른쪽으로 가기
-        if Get_Lane_Cross_Cnt() == 3:
+        if Get_Lane_Cross_Cnt() == 2:                                                # Counter
             Set_Lane_Cross_Cnt(0)
             return 'T_L'    #Turn Left
-        if Get_Edge_Cnt() == 3:
+        if Get_Edge_Cnt() == 1:                                                      # Counter
             Set_Edge_Cnt(0)
             if Get_Exit_Dir() == 0:
                 Set_Exit_Dir(1)
@@ -404,11 +408,15 @@ def Mission_Check():
                 Set_Exit_Dir(0) #만약 T-Cross를 Edge로 인식하는 경우를 대비하기 위함
                 Set_Mission_Cnt(Get_Mission_Cnt() + 1)
                 return 'T_L'
-        if Get_T_Cross_Cnt() == 3:
+        if Get_T_Cross_Cnt() == 1:                                                   # Counter
             Set_T_Cross_Cnt(0)
-            Set_Exit_Dir(0)
-            Set_Mission_Cnt(Get_Mission_Cnt() + 1)
-            return 'T_L'
+            if Get_Exit_Dir() == 0: #만약 Edge를 T-Cross로 인식하는 경우를 대비하기 위함
+                Set_Exit_Dir(1)     #나가는 거라고 세팅
+                return 'TURN'
+            else:
+                Set_Exit_Dir(0)
+                Set_Mission_Cnt(Get_Mission_Cnt() + 1)
+                return 'T_L'
     #endregion Mission - 2 or 4
 
 #endregion Mission
@@ -543,15 +551,14 @@ def motor_control():
     speed = 30
     
     while True:
-        with lock:  # 조향각에 대한 Lock을 사용하여 동기화
-            L, R = calculate_motor_input(steering_angle, speed)
-        
+        #with lock:  # 조향각에 대한 Lock을 사용하여 동기화
         timer = 1
         
         #Mission Count 올라가는 장치
         mission_str = Mission_Check()
         if mission_str is None:
-            continue
+            L, R = calculate_motor_input(steering_angle, speed)
+            timer = 1
         elif mission_str == 'T_R': #Turn-Right
             L = 35
             R = -35
@@ -595,14 +602,10 @@ def motor_control():
         elif Get_Mission_Cnt() == 4:
             if mission_str == 'T_L':
                 timer = 6
-            elif mission_str == 'END':
-                timer = 0
-                L, R = 0, 0
         
         while(timer != 0):
             timer -= 1
             pinky.move(L, R)  # 모터에 제어 신호 입력
-            #print(f"Motor Input - Left: {L}, Right: {R}")
             time.sleep(0.1)
 
 #endregion MOTOR
@@ -610,7 +613,6 @@ def motor_control():
 #region VIDEO
 
 def video_processing():
-    global steering_angle
     global mission_array
     global finish
     
@@ -619,43 +621,53 @@ def video_processing():
 
         # PT 기반 인식
         '''
-        1 = lane
-        2 = left_cross_line
-        3 = right_cross_line
-        4 = T_cross_line
-        5 = edge
-        6 = crosswalk
-        7 = end
+        0 = lane
+        1 = left_cross_line
+        2 = right_cross_line
+        3 = T_cross_line
+        4 = edge
+        5 = crosswalk
+        6 = end
         '''
         results = model(frame)
         for result in results[0].boxes:
             # Set_All_Flag_Clr()
             # 여기서 객체 인식되면 각 객체별 flag = 1
-            if (result.cls == 2) or (result.cls == 3):
+            if (result.cls == 1) or (result.cls == 2):
                 lane_cross(result)
-            elif result.cls == 4:
+            elif result.cls == 3:
                 t_cross(result)
-            elif result.cls == 5:
+            elif result.cls == 4:
                 edge(result)
-            elif result.cls == 6:
+            elif result.cls == 5:
                 crosswalk(result)
-            elif result.cls == 7:
+            elif result.cls == 6:
                 end(result)
         
-        # Line 주행
-        steering_angle = lane(frame)
+        # # Line 주행
+        # steering_angle = lane(frame)
         
-        
+def lane_processing():
+    global steering_angle
+    frame = cam.get_frame()
+    start_t = time.time()
+    steering_angle = lane(frame)
+    end_t = time.time()
+    # cam.display_jupyter(frame)
+    time.sleep(0.1)
+
 
 #endregion VIDEO
 
 # 스레드 생성
 motor_thread = threading.Thread(target=motor_control)
 video_thread = threading.Thread(target=video_processing)
+lane_thread = threading.Thread(target=lane_processing)
 
 # 스레드 시작
 motor_thread.start()
 video_thread.start()
+lane_thread.start()
 
 # try:
 #     motor_thread.join()
